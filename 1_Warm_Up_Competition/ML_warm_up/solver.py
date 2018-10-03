@@ -13,6 +13,9 @@ from sklearn.metrics import accuracy_score, make_scorer
 
 from sklearn.feature_selection import SelectKBest, RFECV
 from sklearn.feature_selection import chi2, f_classif, mutual_info_classif
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.feature_selection import SelectFromModel
+from sklearn.svm import LinearSVC
 
 # input
 train_input = pd.read_csv("./input/train.csv", index_col=0)
@@ -61,7 +64,7 @@ params = [
      "min_samples_split": range(2, 20),
      "max_depth": range(100, 1000),
      "min_samples_leaf": range(1, 100),
-     "min_impurity_decrease": np.arange(0.0, 0.7, 0.1)
+     "min_impurity_decrease": np.arange(0.0, 0.7, 0.01)
      },
     {"algorithm": ["auto", "ball_tree", "kd_tree", "brute"],
      "metric": ["cityblock", "euclidean", "l1", "l2", "manhattan", "minkowski"],
@@ -69,7 +72,10 @@ params = [
      "leaf_size": range(5, 50),
      },
     {"penalty": ["l1", "l2", "elasticnet"],
-     "max_iter": range(5, 2000)
+     "max_iter": range(5, 2000),
+     "tol": np.arange(1e-6, 1e-2, 1e-6),
+     "alpha": np.arange(1e-6, 1e-2, 1e-6),
+     "eta0": np.arange(1e-2, 10.0, 1e-2)
      }
 ]
 
@@ -86,10 +92,37 @@ SKBS_names = ["chi2", "fclassif", "mutual_info_classif"]
 SelKBestStrats = [chi2, f_classif, mutual_info_classif]
 
 for i in range(len(SelKBestStrats)):
-    name = "SelectKBest + " + SKBS_names[i]
-    ft_names += [name]
+    for k in range(1,21,2):
+        name = "Select KBest + " + SKBS_names[i] + " with k = " + str(k)
+        ft_names += [name]
 
-    func = lambda X: (SelectKBest(SelKBestStrats[i]).fit(train_Xs, train_ys)).transform(X)
+        transformer = SelectKBest(SelKBestStrats[i], k=k).fit(train_Xs, train_ys)
+        func = lambda X: transformer.transform(X)
+        fselectors += [func]
+
+
+for i in range(50,101,5):
+    name = "Select with model: ExtraTreesClassifier with n_estimators = " + str(i)
+    transformer = (SelectFromModel(ExtraTreesClassifier(n_estimators=i).fit(train_Xs, train_ys), prefit=True))
+    func = lambda X: transformer.transform(X)
+    ft_names += [name]
+    fselectors += [func]
+
+
+for i in np.arange(0.01,0.15,0.02):
+    name = "Select with model: LinearSVC with penalty = l1, C = " + str(i)
+    lsvc = LinearSVC(C=i, penalty="l1", dual=False).fit(train_Xs, train_ys)
+    transformer = SelectFromModel(lsvc, prefit=True)
+    func = lambda X:  transformer.transform(X)
+    ft_names += [name]
+    fselectors += [func]
+
+for i in np.arange(0.01,0.15,0.02):
+    name = "Select with model: LinearSVC with penalty = l2, C = " + str(i)
+    lsvc = LinearSVC(C=i, penalty="l2", dual=False).fit(train_Xs, train_ys)
+    transformer = SelectFromModel(lsvc, prefit=True)
+    func = lambda X:  transformer.transform(X)
+    ft_names += [name]
     fselectors += [func]
 
 # finding best config
@@ -111,7 +144,7 @@ for i in range(len(classifiers)):
 
         best_configured = RandomizedSearchCV(test_cl(), cl_params, scoring=scorer).fit(learn_Xs_fs, learn_ys)
         learn_score = scorer(best_configured, learn_Xs_fs, learn_ys)
-        print("\nFound configuration with score:", learn_score)
+        print("Found configuration with score:", learn_score)
 
         check_Xs_fs = fselectors[j](check_Xs)
         check_score = scorer(best_configured, check_Xs_fs, check_ys)
