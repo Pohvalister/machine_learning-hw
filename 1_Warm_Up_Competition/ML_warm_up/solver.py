@@ -80,7 +80,7 @@ ft_names = []
 fselectors = []
 
 ft_names += ["keep all features"]
-fselectors += [lambda X, y: X]
+fselectors += [lambda X: X]
 
 SKBS_names = ["chi2", "fclassif", "mutual_info_classif"]
 SelKBestStrats = [chi2, f_classif, mutual_info_classif]
@@ -89,14 +89,15 @@ for i in range(len(SelKBestStrats)):
     name = "SelectKBest + " + SKBS_names[i]
     ft_names += [name]
 
-    func = lambda X, y: SelectKBest(SelKBestStrats[i]).fit_transform(X, y)
+    func = lambda X: (SelectKBest(SelKBestStrats[i]).fit(train_Xs, train_ys)).transform(X)
     fselectors += [func]
 
 # finding best config
-best_ft = None
+best_fs = None
 best_cl = None
 best_cl_score = None
 best_cl_exist = False
+best_i, best_j = 0, 0
 
 for i in range(len(classifiers)):
     for j in range(len(fselectors)):
@@ -106,20 +107,29 @@ for i in range(len(classifiers)):
         test_cl = classifiers[i]
 
         cl_params = params[i]
-        learn_Xs_fs = fselectors[j](learn_Xs, learn_ys)
+        learn_Xs_fs = fselectors[j](learn_Xs)
 
         best_configured = RandomizedSearchCV(test_cl(), cl_params, scoring=scorer).fit(learn_Xs_fs, learn_ys)
         learn_score = scorer(best_configured, learn_Xs_fs, learn_ys)
         print("\nFound configuration with score:", learn_score)
 
-        check_Xs_fs = fselectors[j](check_Xs, check_ys)
+        check_Xs_fs = fselectors[j](check_Xs)
         check_score = scorer(best_configured, check_Xs_fs, check_ys)
 
         print("Actual score:", check_score)
         if not (best_cl_exist) or (best_cl_score < check_score):
-            best_ft = fselectors[j]
+            best_i, best_j = i, j
             best_cl = best_configured
             best_cl_score = check_score
             best_cl_exist = True
 
-print("\nBest score found: ", best_cl_score)
+print("\nBest score found: ", best_cl_score, "with classifier:", cl_names[best_i], "and strategy:", ft_names[best_j])
+
+# predicting
+
+test_Xs_fs = fselectors[best_j](test_Xs)
+test_ys = best_cl.predict(test_Xs_fs)
+answer_ys = le.inverse_transform(test_ys)
+
+pd.DataFrame(data=answer_ys, index=range(1, 6634, 2), columns=['class']).to_csv("answer.csv", header=True,
+                                                                                index_label='id')
