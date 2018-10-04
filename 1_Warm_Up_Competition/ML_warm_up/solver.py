@@ -8,6 +8,9 @@ from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import Perceptron, SGDClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+
 
 from sklearn.metrics import accuracy_score, make_scorer
 
@@ -27,6 +30,7 @@ le = LabelEncoder()
 le.fit(['A', 'B', 'C', 'D', 'E', 'F', 'G'])
 train_ys = le.transform(train_ys)
 
+
 def transform_Xs(Xs):
     floatXs = Xs[:, :20]
     categXs = Xs[:, 20:27]
@@ -38,7 +42,7 @@ def transform_Xs(Xs):
         categXs[i] = categXs[i].astype('int')
 
     ohe = OneHotEncoder(sparse=False, categorical_features='all')
-    categXs = ohe.fit_transform(categXs,train_ys)
+    categXs = ohe.fit_transform(categXs)
 
     floatXs = minmax_scale(floatXs)#normalize
     return np.concatenate([floatXs, categXs], axis=1)
@@ -47,22 +51,27 @@ def transform_Xs(Xs):
 train_Xs = transform_Xs(train_Xs)
 
 train_ys = train_ys.astype('int')
-learn_Xs, check_Xs, learn_ys, check_ys = train_test_split(train_Xs, train_ys, test_size=0.05)
+learn_Xs, check_Xs, learn_ys, check_ys = train_test_split(train_Xs, train_ys)
 
 test_Xs = test_input.values[:, :27]
 test_Xs = transform_Xs(test_Xs)
 
-# chi2: ValueError: Input X must be non-negative.
-
-
 # experimentals - classifiers
-cl_names = ["SGD", "DecisionTree", "KNeighbors", "Perceptron"]
-classifiers = [SGDClassifier,DecisionTreeClassifier, KNeighborsClassifier, Perceptron]
+cl_names = ["RandomForest","SVC"]#,"SGD", "DecisionTree", "KNeighbors", "Perceptron"]
+classifiers = [RandomForestClassifier, SVC]#,SGDClassifier,DecisionTreeClassifier, KNeighborsClassifier, Perceptron]
 
 params = [
+    {"n_estimators": range(10,100,10),
+     "criterion": ["gini", "entropy"],
+     "min_samples_split": range(2, 20)
+    },
+    {"kernel": ["linear", "rbf", "poly", "sigmoid"],
+     "shrinking": [True, False],
+     "degree": range(1, 5)
+    },
     {"loss": ["hinge", "log", "modified_huber", "squared_hinge", "perceptron"],
      "penalty": ["l1", "l2", "elasticnet"],
-     "max_iter": range(5, 2000, 20)
+     "max_iter": range(5, 1000, 20)
     },
     {"criterion": ["gini", "entropy"],
      "splitter": ["best", "random"],
@@ -133,7 +142,7 @@ for i in np.arange(0.01,0.15,0.02):
 
 # finding best config
 best_fs = None
-best_cl = None
+#best_cl = None
 best_cl_score = None
 best_cl_exist = False
 best_i, best_j = 0, 0
@@ -158,7 +167,7 @@ for i in range(len(classifiers)):
         print("Actual score:", check_score)
         if not (best_cl_exist) or (best_cl_score < check_score):
             best_i, best_j = i, j
-            best_cl = best_configured
+            #best_cl = best_configured
             best_cl_score = check_score
             best_cl_exist = True
 
@@ -167,6 +176,9 @@ print("\nBest score found: ", best_cl_score, "with classifier:", cl_names[best_i
 # predicting
 
 test_Xs_fs = fselectors[best_j](test_Xs)
+train_Xs_fs = fselectors[best_j](train_Xs)
+
+best_cl=RandomizedSearchCV(classifiers[best_i], params[best_i], scoring=scorer).fit(train_Xs_fs, train_ys)
 test_ys = best_cl.predict(test_Xs_fs)
 answer_ys = le.inverse_transform(test_ys)
 
