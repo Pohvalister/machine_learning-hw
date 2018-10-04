@@ -1,20 +1,19 @@
 import numpy as np
 import pandas as pd
 
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.preprocessing import minmax_scale
 
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.linear_model import Perceptron
+from sklearn.linear_model import Perceptron, SGDClassifier
 
 from sklearn.metrics import accuracy_score, make_scorer
 
-from sklearn.feature_selection import SelectKBest, RFECV
+from sklearn.feature_selection import SelectKBest, SelectFromModel
 from sklearn.feature_selection import chi2, f_classif, mutual_info_classif
 from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.feature_selection import SelectFromModel
 from sklearn.svm import LinearSVC
 
 # input
@@ -28,25 +27,27 @@ le = LabelEncoder()
 le.fit(['A', 'B', 'C', 'D', 'E', 'F', 'G'])
 train_ys = le.transform(train_ys)
 
-
 def transform_Xs(Xs):
     floatXs = Xs[:, :20]
     categXs = Xs[:, 20:27]
 
-    floatXs = minmax_scale(floatXs)
 
     for i in range(len(categXs)):
         for j in range(len(categXs[i])):
             categXs[i][j] = le.transform([categXs[i][j]])[0]
         categXs[i] = categXs[i].astype('int')
 
+    ohe = OneHotEncoder(sparse=False, categorical_features='all')
+    categXs = ohe.fit_transform(categXs,train_ys)
+
+    floatXs = minmax_scale(floatXs)#normalize
     return np.concatenate([floatXs, categXs], axis=1)
 
 
 train_Xs = transform_Xs(train_Xs)
 
 train_ys = train_ys.astype('int')
-learn_Xs, check_Xs, learn_ys, check_ys = train_test_split(train_Xs, train_ys)
+learn_Xs, check_Xs, learn_ys, check_ys = train_test_split(train_Xs, train_ys, test_size=0.05)
 
 test_Xs = test_input.values[:, :27]
 test_Xs = transform_Xs(test_Xs)
@@ -55,10 +56,14 @@ test_Xs = transform_Xs(test_Xs)
 
 
 # experimentals - classifiers
-cl_names = ["DecisionTree", "KNeighbors", "Perceptron"]
-classifiers = [DecisionTreeClassifier, KNeighborsClassifier, Perceptron]
+cl_names = ["SGD", "DecisionTree", "KNeighbors", "Perceptron"]
+classifiers = [SGDClassifier,DecisionTreeClassifier, KNeighborsClassifier, Perceptron]
 
 params = [
+    {"loss": ["hinge", "log", "modified_huber", "squared_hinge", "perceptron"],
+     "penalty": ["l1", "l2", "elasticnet"],
+     "max_iter": range(5, 2000, 20)
+    },
     {"criterion": ["gini", "entropy"],
      "splitter": ["best", "random"],
      "min_samples_split": range(2, 20),
@@ -77,6 +82,7 @@ params = [
      "alpha": np.arange(1e-6, 1e-2, 1e-6),
      "eta0": np.arange(1e-2, 10.0, 1e-2)
      }
+
 ]
 
 scorer = make_scorer(accuracy_score)
@@ -135,7 +141,7 @@ best_i, best_j = 0, 0
 for i in range(len(classifiers)):
     for j in range(len(fselectors)):
 
-        print("\nTesting on classifier:", cl_names[i], "with featrue selection strategy:", ft_names[j])
+        print("\nTesting on classifier:", cl_names[i], "with feature selection strategy:", ft_names[j])
 
         test_cl = classifiers[i]
 
