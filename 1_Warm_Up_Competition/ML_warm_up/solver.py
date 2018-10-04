@@ -51,14 +51,14 @@ def transform_Xs(Xs):
 train_Xs = transform_Xs(train_Xs)
 
 train_ys = train_ys.astype('int')
-learn_Xs, check_Xs, learn_ys, check_ys = train_test_split(train_Xs, train_ys)
+learn_Xs, check_Xs, learn_ys, check_ys = train_test_split(train_Xs, train_ys, test_size=0.5)
 
 test_Xs = test_input.values[:, :27]
 test_Xs = transform_Xs(test_Xs)
 
 # experimentals - classifiers
-cl_names = ["RandomForest","SVC"]#,"SGD", "DecisionTree", "KNeighbors", "Perceptron"]
-classifiers = [RandomForestClassifier, SVC]#,SGDClassifier,DecisionTreeClassifier, KNeighborsClassifier, Perceptron]
+cl_names = ["RandomForest"]#,"SVC","SGD", "DecisionTree", "KNeighbors", "Perceptron"]
+classifiers = [RandomForestClassifier]#, SVC,SGDClassifier,DecisionTreeClassifier, KNeighborsClassifier, Perceptron]
 
 params = [
     {"n_estimators": range(10,100,10),
@@ -178,7 +178,7 @@ print("\nBest score found: ", best_cl_score, "with classifier:", cl_names[best_i
 test_Xs_fs = fselectors[best_j](test_Xs)
 train_Xs_fs = fselectors[best_j](train_Xs)
 
-best_cl=RandomizedSearchCV(classifiers[best_i], params[best_i], scoring=scorer).fit(train_Xs_fs, train_ys)
+best_cl=RandomizedSearchCV(classifiers[best_i](), params[best_i], scoring=scorer).fit(train_Xs_fs, train_ys)
 test_ys = best_cl.predict(test_Xs_fs)
 answer_ys = le.inverse_transform(test_ys)
 
