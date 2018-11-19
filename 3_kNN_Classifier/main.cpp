@@ -109,10 +109,12 @@ public:
     }
 };
 
-//Main Function
+
+//consts
 const int MAXCLAS = 26;
 const int MAXFEAT = 201;
 const int MAXOBJE = 401;
+const int MAXITERATIONS = 1000;
 
 const int WEIGHT_C = 4;
 void (*weights[WEIGHT_C])(double*, int) = {uniform_weight, triangle_weight, exponent_weight, tricube_weight};
@@ -122,7 +124,8 @@ template <typename T, std::size_t N>
 double (*distances[DISTANCE_C])(T[N], T[N]) = {euclidian_distance<T,N>, manhattan_distance<T,N>, chebyshev_distance<T,N>};
 
 
-KNeighborsClassifier<KNeighborsAlgorithm<MAXFEAT>,MAXFEAT>* train(int classes_c, int neigh_c, int window_c, int metric_c, int weight_c);
+//Main Function
+KNeighborsClassifier<KDTreeStruct<MAXFEAT>,MAXFEAT>* train(int classes_c, int neigh_c, int window_c, int metric_c, int weight_c);
 
 int X[MAXOBJE][MAXFEAT];
 int y[MAXOBJE];
@@ -130,8 +133,10 @@ int y[MAXOBJE];
 int X_test[MAXOBJE][MAXFEAT];
 int y_test[MAXOBJE];
 
+int FEAT_C, CLASS_C, OBJ_C;
+int TEST_C;
+
 int main() {
-    int FEAT_C, CLASS_C, OBJ_C;
     std::cin>>FEAT_C>>CLASS_C>>OBJ_C;
 
     for (int i=0;i< OBJ_C; i++)
@@ -144,7 +149,6 @@ int main() {
                 X[i][j] = 0;
             }
 
-    int TEST_C;
     std::cin>>TEST_C;
 
     for (int i=0;i< TEST_C; i++)
@@ -154,19 +158,34 @@ int main() {
             else
                 X_test[i][j]=0;
 
-
-
     return 0;
 }
 
-KNeighborsClassifier<KNeighborsAlgorithm<MAXFEAT>,MAXFEAT>* train(int classes_c, int neigh_c, int window_c, int metric_c, int weight_c){
+double runTestingsOneOut(KNeighborsClassifier<KDTreeStruct<MAXFEAT>,MAXFEAT>* c);
+
+KNeighborsClassifier<KDTreeStruct<MAXFEAT>,MAXFEAT>* train(int classes_c, int neigh_c, int window_c, int metric_c, int weight_c){
+    int best_nc = 1, best_mc = 1, best_wec = 0;
+    double best_win = 0;
+    double best_score = 0;
     for (int nc = 1; nc< neigh_c; nc++)
         for (int mc=0; mc< metric_c; mc++)
             for (int wec=0; wec < weight_c; wec++)
-                for (int wic=0; wic < window_c; wic++){
-                    double win_scale = 0.1 + (5 - 0.1) / (window_c*wic);///!!!!!
-                    auto classifier = new KNeighborsClassifier<KDTreeStruct<MAXFEAT>, MAXFEAT>(nc, win_scale, weights[wec],distances<int,MAXFEAT>[mc]);
-
-
+                for (double wic=0; wic < (double)window_c; wic+=1.0) {
+                    double win_scale = 0.1 + (5 - 0.1) / (window_c * wic);///!!!!!
+                    auto classifier = new KNeighborsClassifier<KDTreeStruct<MAXFEAT>, MAXFEAT>(nc, win_scale,
+                                                                                               weights[wec],
+                                                                                               distances<int, MAXFEAT>[mc]);
+                    double score = runTestingsOneOut(&classifier);
+                    if (best_score < score){
+                        best_score=score; best_nc = nc; best_mc = mc; best_win = win_scale; best_wec = wec;
+                    }
                 }
+    auto best_classifier = new KNeighborsClassifier<KDTreeStruct<MAXFEAT>, MAXFEAT> (best_nc, best_win, weights[best_wec],distances<int,MAXFEAT>[best_mc]);
+    return best_classifier;
+}
+
+double runTestingsOneOut(KNeighborsClassifier<KDTreeStruct<MAXFEAT>,MAXFEAT>* c){
+    for (int i =0; i < min(OBJ_C, MAXITERATIONS); i++){
+        
+    }
 }
